@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpsDesk - TBO Operations Case & SLA Management</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .badge-breached { background-color: #fee2e2; color: #b91c1c; border: 1px solid #f87171; }
+    .badge-atrisk { background-color: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+    .badge-ontrack { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  </style>
+</head>
+<body class="text-slate-800 flex h-screen overflow-hidden">
+
+  <!-- Sidebar Navigation -->
+  <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between border-r border-slate-800 flex-shrink-0">
+    <div>
+      <!-- Brand Header -->
+      <div class="h-16 flex items-center px-6 bg-slate-950 border-b border-slate-800 gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
+          O
+        </div>
+        <div>
+          <span class="text-white font-bold tracking-tight text-lg">OpsDesk</span>
+          <span class="text-xs bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded font-mono ml-1 border border-indigo-800">TBO.COM</span>
+        </div>
+      </div>
+
+      <!-- User Persona Switcher -->
+      <div class="p-4 border-b border-slate-800 bg-slate-900/60">
+        <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Active Role / Persona</label>
+        <select id="personaSelect" onchange="switchPersona()" class="w-full bg-slate-800 border border-slate-700 text-xs text-white rounded-md p-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+          <option value="lead">Ops Lead / Governance (Elena Rostova)</option>
+          <option value="em">Escalation Manager (Vikram Malhotra)</option>
+          <option value="agent" selected>Ops Agent - EMEA (Tariq Mansoor)</option>
+          <option value="agency">Agency Requester (Royal Travels)</option>
+        </select>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="p-3 space-y-1">
+        <button onclick="setView('all')" id="nav-all" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-inbox w-4"></i>
+            <span>All Active Tickets</span>
+          </div>
+          <span id="badge-all-count" class="bg-indigo-900/60 text-indigo-300 text-xs px-2 py-0.5 rounded-full font-mono">0</span>
+        </button>
+
+        <button onclick="setView('my_queue')" id="nav-my_queue" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-user-tag w-4"></i>
+            <span>My Assigned Queue</span>
+          </div>
+          <span id="badge-my-count" class="bg-slate-800 text-slate-400 text-xs px-2 py-0.5 rounded-full font-mono">0</span>
+        </button>
+
+        <button onclick="setView('escalation')" id="nav-escalation" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <div class="flex items-center gap-3 text-red-400">
+            <i class="fa-solid fa-triangle-exclamation w-4"></i>
+            <span class="text-slate-200">Escalations & At-Risk</span>
+          </div>
+          <span id="badge-esc-count" class="bg-red-950 text-red-400 text-xs px-2 py-0.5 rounded-full font-mono border border-red-800">0</span>
+        </button>
+
+        <button onclick="setView('triage')" id="nav-triage" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-filter w-4"></i>
+            <span>Unassigned Triage</span>
+          </div>
+          <span id="badge-triage-count" class="bg-slate-800 text-slate-400 text-xs px-2 py-0.5 rounded-full font-mono">0</span>
+        </button>
+
+        <div class="pt-4 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Analytics & Insights</div>
+
+        <button onclick="showInsightsModal()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i class="fa-solid fa-chart-pie w-4 text-emerald-400"></i>
+          <span>Theme Insights Loop</span>
+        </button>
+
+        <button onclick="exportCSV()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition hover:bg-slate-800 text-slate-300">
+          <i class="fa-solid fa-file-export w-4 text-amber-400"></i>
+          <span>Uncapped Data Export</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Quick Hackathon Stats footer -->
+    <div class="p-4 border-t border-slate-800 text-xs text-slate-400 bg-slate-950/40">
+      <div class="flex items-center justify-between mb-1">
+        <span>Travel-Aware SLA:</span>
+        <span class="text-emerald-400 font-semibold">Active</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span>TBOH Auto-Linker:</span>
+        <span class="text-blue-400 font-semibold">Enabled</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 flex flex-col overflow-hidden">
+    <!-- Top Action Bar -->
+    <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-4">
+        <h1 id="currentViewTitle" class="text-lg font-bold text-slate-900">All Active Tickets</h1>
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
+          <input type="text" id="quickFilter" onkeyup="filterLocalTickets()" placeholder="Search TBOH, Agency, or Keyword..." class="pl-9 pr-4 py-1.5 text-sm bg-slate-100 border border-slate-200 rounded-lg w-72 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none">
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- New Ticket Action -->
+        <button onclick="openNewTicketModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition">
+          <i class="fa-solid fa-plus"></i>
+          <span>Simulate New Ticket</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Master-Detail Split Screen -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Left: Ticket List Queue (40% width) -->
+      <div class="w-5/12 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+        <!-- Filter bar -->
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+          <span id="ticketCountLabel">Loading tickets...</span>
+          <div class="flex items-center gap-2">
+            <span>Filter Region:</span>
+            <select id="regionFilter" onchange="loadTickets()" class="bg-white border border-slate-300 rounded px-2 py-1 outline-none text-xs">
+              <option value="">All Regions</option>
+              <option value="EMEA">EMEA</option>
+              <option value="APAC">APAC</option>
+              <option value="AMER">AMER</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Scrollable Ticket List -->
+        <div id="ticketList" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Right: Context-Rich Ticket Detail & Multi-supplier threads (60% width) -->
+      <div id="detailPane" class="w-7/12 bg-slate-50/50 flex flex-col overflow-y-auto p-6">
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+          <i class="fa-regular fa-folder-open text-4xl"></i>
+          <p class="text-sm">Select a ticket from the left queue to view travel context & linked history</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Simulate New Ticket with Auto-Intent -->
+  <div id="newTicketModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col">
+      <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-receipt text-indigo-400"></i>
+          Simulate Inbound Ticket (Travel Agency)
+        </h3>
+        <button onclick="closeNewTicketModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form onsubmit="handleCreateTicket(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Booking TBOH Identifier *</label>
+          <input type="text" id="form-tboh" required placeholder="e.g. TBOH-89211" value="TBOH-89211" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none">
+          <p class="text-[11px] text-slate-500 mt-1">Hint: Use <strong>TBOH-89211</strong> to trigger instant First-Class Ticket Linking demo!</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Agency Name *</label>
+            <input type="text" id="form-agencyName" required placeholder="e.g. Royal Travels Dubai" value="Royal Travels Dubai" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Region *</label>
+            <select id="form-region" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option value="EMEA">EMEA</option>
+              <option value="APAC">APAC</option>
+              <option value="AMER">AMER</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Subject / Issue Title *</label>
+          <input type="text" id="form-title" onblur="predictIntent()" required placeholder="e.g. Third refund request for canceled EK flight" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Message Description</label>
+          <textarea id="form-description" onblur="predictIntent()" rows="3" placeholder="Agency describes the issue..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+        </div>
+
+        <!-- AI Real-time intent detection preview -->
+        <div id="aiIntentBadge" class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i>
+            <span class="text-slate-700">AI Intent Auto-Detected:</span>
+            <strong id="detectedIntentText" class="text-indigo-900">Type above to predict</strong>
+          </div>
+          <span id="detectedConfidence" class="bg-indigo-200 text-indigo-800 font-mono text-[10px] px-1.5 py-0.5 rounded"></span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 uppercase mb-1">Priority</label>
+            <select id="form-priority" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+              <option value="HIGH">High</option>
+              <option value="MEDIUM" selected>Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 uppercase mb-1">Check-in Date/Time</label>
+            <input type="datetime-local" id="form-checkIn" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 uppercase mb-1">LCD (Cancellation Cutoff)</label>
+            <input type="datetime-local" id="form-lcd" class="w-full border border-slate-300 rounded-lg p-1.5 text-xs">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <button type="button" onclick="closeNewTicketModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow">Create & Auto-Route</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Theme Insights Loop -->
+  <div id="insightsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col">
+      <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-emerald-400"></i>
+          Operations Feedback & Theme Insights Loop
+        </h3>
+        <button onclick="closeInsightsModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <p class="text-xs text-slate-600">OpsDesk mines recurring patterns directly from agency tickets and supplier threads, closing the feedback loop into product improvements.</p>
+        
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Top Recurring Operational Themes</h4>
+          <div id="themeList" class="space-y-3">
+            <!-- Populated via API -->
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h5 class="text-xs font-bold text-slate-700 uppercase mb-2">Category Distribution</h5>
+            <div id="categoryDist" class="text-xs space-y-1.5"></div>
+          </div>
+          <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h5 class="text-xs font-bold text-slate-700 uppercase mb-2">Supplier Friction Hotspots</h5>
+            <div id="supplierFrictionDist" class="text-xs space-y-1.5"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>
