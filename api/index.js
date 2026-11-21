@@ -1,305 +1,304 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-let { tickets, agents } = require('../src/db');
-const { INTENT_TAXONOMY, classifyIntent, calculateTravelSLA, routeTicket, mineInsights } = require('../src/engine');
 
-const path = require('path');
-const app = express();
-const PORT = process.env.PORT || 3000;
+const initialTickets = [
+  {
+    id: "TBOT-1001",
+    tboh: "TBOH-89211",
+    title: "Flight cancellation & immediate refund inquiry",
+    description: "Agency requested cancellation of booking TBOH-89211 due to medical emergency and requires an accelerated refund.",
+    agencyId: "AGY-101",
+    agencyName: "Royal Travels Dubai",
+    region: "EMEA",
+    category: "Refund",
+    subIntent: "Emergency Refund",
+    priority: "HIGH",
+    status: "Escalated",
+    checkInDate: "2026-11-21T04:00:00Z",
+    lcd: "2026-11-20T20:00:00Z",
+    slaMinutesRemaining: -45,
+    slaStatus: "BREACHED",
+    assignedTo: "EM-01",
+    assignedToName: "Vikram Malhotra (Escalation Manager)",
+    routingReason: "Check-in < 24h & LCD imminent: Auto-escalated from EMEA Tier-2 to Escalation Manager",
+    createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [
+      { id: "h1", timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), actor: "System", action: "Ticket Created via Agency Portal" },
+      { id: "h2", timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), actor: "SLA Watchdog", action: "SLA At Risk: LCD expires in < 6 hours" },
+      { id: "h3", timestamp: new Date(Date.now() - 3600000 * 1).toISOString(), actor: "Routing Engine", action: "Escalated to Vikram Malhotra (Escalation Manager)" }
+    ],
+    sideConversations: [
+      {
+        id: "sc-1",
+        targetType: "Supplier",
+        supplierName: "Emirates Airline Desk",
+        recipients: ["ops@emirates-partner.com", "tbo-desk@emirates.com"],
+        subject: "Urgent Medical Waiver Refund - PNR EK-98214",
+        messages: [
+          { sender: "Vikram Malhotra (TBO)", time: new Date(Date.now() - 1800000).toISOString(), text: "Please expedite refund review under Medical Exception clause. Certificate attached in original TBOH dossier." }
+        ]
+      }
+    ],
+    internalNotes: [
+      { id: "n1", author: "Priya Sharma (Agent)", time: new Date(Date.now() - 7200000).toISOString(), text: "Medical cert verified. Supplier fee waiver pending approval." }
+    ]
+  },
+  {
+    id: "TBOT-1002",
+    tboh: "TBOH-89211",
+    title: "Duplicate deduction query for TBOH-89211",
+    description: "Agency reports double charge on deposit ledger for the same flight booking TBOH-89211.",
+    agencyId: "AGY-101",
+    agencyName: "Royal Travels Dubai",
+    region: "EMEA",
+    category: "Refund",
+    subIntent: "Payment Dispute",
+    priority: "MEDIUM",
+    status: "Open",
+    checkInDate: "2026-11-21T04:00:00Z",
+    lcd: "2026-11-20T20:00:00Z",
+    slaMinutesRemaining: 15,
+    slaStatus: "AT_RISK",
+    assignedTo: "AGT-102",
+    assignedToName: "Tariq Mansoor (EMEA Ops)",
+    routingReason: "Region EMEA + Agency Tier 1 + Availability (Score: 92/100)",
+    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [
+      { id: "h1", timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), actor: "System", action: "Created & automatically linked to TBOT-1001 via TBOH-89211" }
+    ],
+    sideConversations: [],
+    internalNotes: []
+  },
+  {
+    id: "TBOT-1003",
+    tboh: "TBOH-89211",
+    title: "Request for credit note copy TBOH-89211",
+    description: "Accountant at Royal Travels asking for the credit note invoice copy for tax filing.",
+    agencyId: "AGY-101",
+    agencyName: "Royal Travels Dubai",
+    region: "EMEA",
+    category: "Invoicing",
+    subIntent: "Credit Note Retrieval",
+    priority: "LOW",
+    status: "New",
+    checkInDate: "2026-11-21T04:00:00Z",
+    lcd: "2026-11-20T20:00:00Z",
+    slaMinutesRemaining: 120,
+    slaStatus: "ON_TRACK",
+    assignedTo: null,
+    assignedToName: "Unassigned",
+    routingReason: "Pending triage in EMEA Finance pool",
+    createdAt: new Date(Date.now() - 3600000 * 0.5).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [
+      { id: "h1", timestamp: new Date(Date.now() - 3600000 * 0.5).toISOString(), actor: "System", action: "Linked to TBOH-89211 cluster (3 tickets linked)" }
+    ],
+    sideConversations: [],
+    internalNotes: []
+  },
+  {
+    id: "TBOT-1004",
+    tboh: "TBOH-44109",
+    title: "Hotel voucher not accepted at check-in counter",
+    description: "Guest arrived at Grand Plaza Singapore, hotel claims no active reservation received from bedbank supplier WebBeds.",
+    agencyId: "AGY-204",
+    agencyName: "Pacific Gateway Holidays",
+    region: "APAC",
+    category: "Check-in Issue",
+    subIntent: "Hotel Voucher Denied",
+    priority: "HIGH",
+    status: "Pending",
+    checkInDate: "2026-11-20T17:00:00Z",
+    lcd: "2026-11-18T00:00:00Z",
+    slaMinutesRemaining: 20,
+    slaStatus: "AT_RISK",
+    assignedTo: "AGT-201",
+    assignedToName: "Aiko Tanaka (APAC Duty Desk)",
+    routingReason: "APAC live check-in alert routed to High-Priority Duty Agent",
+    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [
+      { id: "h1", timestamp: new Date(Date.now() - 3600000 * 1.5).toISOString(), actor: "System", action: "Ticket Created via Emergency Hotline" },
+      { id: "h2", timestamp: new Date(Date.now() - 3600000 * 1.2).toISOString(), actor: "AGT-201", action: "Initiated supplier side conversation with WebBeds Ops" }
+    ],
+    sideConversations: [
+      {
+        id: "sc-2",
+        targetType: "Supplier",
+        supplierName: "WebBeds Asia",
+        recipients: ["sg-relo@webbeds.com", "hotlinesg@webbeds.com"],
+        subject: "CRITICAL: Booking Ref WB-992144 - Guest at Counter",
+        messages: [
+          { sender: "Aiko Tanaka (TBO)", time: new Date(Date.now() - 3600000).toISOString(), text: "Guest Mr. Chen is at front desk. Please re-send supplier voucher immediately to reservations@grandplazasg.com." }
+        ]
+      }
+    ],
+    internalNotes: [
+      { id: "n1", author: "Aiko Tanaka", time: new Date(Date.now() - 3600000).toISOString(), text: "Called hotel duty manager. WebBeds reservation email was trapped in their spam folder." }
+    ]
+  },
+  {
+    id: "TBOT-1005",
+    tboh: "TBOH-66321",
+    title: "Room upgrade billing discrepancy",
+    description: "Agency billed USD 140 instead of quoted USD 90 for sea view upgrade in Bali resort.",
+    agencyId: "AGY-204",
+    agencyName: "Pacific Gateway Holidays",
+    region: "APAC",
+    category: "Booking Amendment",
+    subIntent: "Price Mismatch",
+    priority: "LOW",
+    status: "Resolved",
+    checkInDate: "2026-12-05T10:00:00Z",
+    lcd: "2026-11-28T00:00:00Z",
+    slaMinutesRemaining: 480,
+    slaStatus: "ON_TRACK",
+    assignedTo: "AGT-201",
+    assignedToName: "Aiko Tanaka (APAC Duty Desk)",
+    routingReason: "Account match + normal priority queue",
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [],
+    sideConversations: [],
+    internalNotes: []
+  },
+  {
+    id: "TBOT-1006",
+    tboh: "TBOH-77142",
+    title: "Sightseeing tour bus breakdown in Rome",
+    description: "Group of 14 passengers stranded during Colosseum & Vatican full day excursion.",
+    agencyId: "AGY-305",
+    agencyName: "EuroVenture Travel London",
+    region: "EMEA",
+    category: "Sightseeing Disruption",
+    subIntent: "Transport Breakdown",
+    priority: "HIGH",
+    status: "Escalated",
+    checkInDate: "2026-11-20T09:00:00Z",
+    lcd: "2026-11-19T00:00:00Z",
+    slaMinutesRemaining: -10,
+    slaStatus: "BREACHED",
+    assignedTo: "EM-01",
+    assignedToName: "Vikram Malhotra (Escalation Manager)",
+    routingReason: "Passenger stranded indicator triggered instant escalation",
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: [],
+    sideConversations: [],
+    internalNotes: []
+  }
+];
 
-app.use(cors());
-app.use(express.json());
-// Serve static files with absolute path
-app.use(express.static(path.join(__dirname, '../public')));
+const agents = [
+  { id: "AGT-101", name: "Sarah Jenkins", region: "AMER", tier: "Tier-2", activeTickets: 3, maxCapacity: 10, availability: "AVAILABLE" },
+  { id: "AGT-102", name: "Tariq Mansoor", region: "EMEA", tier: "Tier-1", activeTickets: 7, maxCapacity: 10, availability: "AVAILABLE" },
+  { id: "AGT-201", name: "Aiko Tanaka", region: "APAC", tier: "Tier-2", activeTickets: 5, maxCapacity: 10, availability: "AVAILABLE" },
+  { id: "EM-01", name: "Vikram Malhotra", region: "GLOBAL", role: "Escalation Manager", activeTickets: 2, maxCapacity: 6, availability: "AVAILABLE" },
+  { id: "LEAD-01", name: "Elena Rostova", region: "GLOBAL", role: "Ops Lead", activeTickets: 1, maxCapacity: 5, availability: "AVAILABLE" }
+];
 
-// Root route fallback
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
+let tickets = [...initialTickets];
 
-// Refresh dynamic SLAs on query
-function enrichTicket(t) {
-  const sla = calculateTravelSLA(t);
-  return {
-    ...t,
-    dynamicSLA: sla,
-    slaStatus: sla.status,
-    slaMinutesRemaining: sla.remainingMinutes
-  };
+function calculateTravelSLA(ticket) {
+  const now = new Date();
+  const checkIn = ticket.checkInDate ? new Date(ticket.checkInDate) : null;
+  const lcd = ticket.lcd ? new Date(ticket.lcd) : null;
+
+  let baseMinutes = 240;
+  if (ticket.priority === 'HIGH') baseMinutes = 60;
+  if (ticket.priority === 'LOW') baseMinutes = 480;
+
+  let checkInUrgencyHours = checkIn ? (checkIn.getTime() - now.getTime()) / 36e5 : null;
+  let lcdUrgencyHours = lcd ? (lcd.getTime() - now.getTime()) / 36e5 : null;
+
+  let dynamicMinutes = baseMinutes;
+  let reasonTag = "Standard Priority Clock";
+
+  if (checkInUrgencyHours !== null && checkInUrgencyHours <= 24 && checkInUrgencyHours > 0) {
+    dynamicMinutes = Math.min(dynamicMinutes, 30);
+    reasonTag = `Check-in Imminent (${Math.round(checkInUrgencyHours)}h remaining)`;
+  } else if (checkInUrgencyHours !== null && checkInUrgencyHours <= 0) {
+    dynamicMinutes = 15;
+    reasonTag = "Guest In-Transit / At Counter";
+  }
+
+  if (lcdUrgencyHours !== null && lcdUrgencyHours <= 6 && lcdUrgencyHours > 0) {
+    dynamicMinutes = Math.min(dynamicMinutes, 20);
+    reasonTag = `LCD Cancellation Cutoff in ${Math.round(lcdUrgencyHours * 60)} mins`;
+  }
+
+  const created = new Date(ticket.createdAt || now);
+  const elapsedMinutes = Math.round((now.getTime() - created.getTime()) / (1000 * 60));
+  const remainingMinutes = dynamicMinutes - elapsedMinutes;
+
+  let status = "ON_TRACK";
+  if (remainingMinutes <= 0) {
+    status = "BREACHED";
+  } else if (remainingMinutes <= 30) {
+    status = "AT_RISK";
+  }
+
+  return { allocatedMinutes: dynamicMinutes, elapsedMinutes, remainingMinutes, status, reasonTag };
 }
 
-// 1. Get all tickets with filtering & search (Queue views)
-app.get('/api/tickets', (req, res) => {
-  const { view, tboh, agencyId, region, status, category } = req.query;
+function enrichTicket(t) {
+  const sla = calculateTravelSLA(t);
+  return { ...t, dynamicSLA: sla, slaStatus: sla.status, slaMinutesRemaining: sla.remainingMinutes };
+}
+
+module.exports = (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  const url = req.url || '';
+
+  // 1. Meta
+  if (url.includes('/api/meta')) {
+    return res.json({ agents, taxonomy: {} });
+  }
+
+  // 2. Linked tickets
+  if (url.includes('/linked')) {
+    const idMatch = url.match(/\/api\/tickets\/([^\/]+)\/linked/);
+    const id = idMatch ? idMatch[1] : '';
+    const ticket = tickets.find(t => t.id === id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const linkedTBOH = tickets.filter(t => t.tboh === ticket.tboh && t.id !== ticket.id).map(enrichTicket);
+    const linkedByAgency = tickets.filter(t => t.agencyId === ticket.agencyId && t.id !== ticket.id).map(enrichTicket);
+
+    return res.json({ primaryTicket: enrichTicket(ticket), linkedByTBOH, linkedByAgency });
+  }
+
+  // 3. Insights
+  if (url.includes('/api/insights')) {
+    return res.json({
+      topRecurringThemes: [
+        { theme: "Repeat Refund Inquiries for Same TBOH", impact: "High Agency Frustration", volume: 3, suggestedFix: "Show live supplier refund status inside Agency Portal" },
+        { theme: "Voucher Delivery Failure at Front Desk", impact: "High Check-in Escalation", volume: 2, suggestedFix: "Trigger automated API voucher push to hotel PMS 2 hours before check-in" },
+        { theme: "Emergency Transport Breakdown Excursions", impact: "High Brand Risk", volume: 1, suggestedFix: "Require local DMC standby vehicle SLA verification" }
+      ],
+      categoryBreakdown: { "Refund": 3, "Check-in Issue": 1, "Booking Amendment": 1, "Sightseeing Disruption": 1 },
+      supplierFriction: { "WebBeds Asia": 2, "Emirates Airline Desk": 1, "Rome Cabs & Tours DMC": 1 }
+    });
+  }
+
+  // 4. Default: list tickets
   let filtered = tickets.map(enrichTicket);
-
-  if (tboh) {
-    filtered = filtered.filter(t => t.tboh.toLowerCase() === tboh.toLowerCase());
-  }
-  if (agencyId) {
-    filtered = filtered.filter(t => t.agencyId === agencyId);
-  }
-  if (region) {
-    filtered = filtered.filter(t => t.region === region);
-  }
-  if (status) {
-    filtered = filtered.filter(t => t.status.toLowerCase() === status.toLowerCase());
-  }
-  if (category) {
-    filtered = filtered.filter(t => t.category.toLowerCase() === category.toLowerCase());
-  }
-
-  // Preset Views:
-  if (view === 'triage') {
+  const q = req.query || {};
+  if (q.view === 'triage') {
     filtered = filtered.filter(t => !t.assignedTo || t.status === 'New');
-  } else if (view === 'escalation') {
+  } else if (q.view === 'escalation') {
     filtered = filtered.filter(t => t.status === 'Escalated' || t.slaStatus === 'BREACHED' || t.slaStatus === 'AT_RISK');
-  } else if (view === 'my_queue') {
-    // defaults to Tariq / AGT-102 for agent persona
+  } else if (q.view === 'my_queue') {
     filtered = filtered.filter(t => t.assignedTo === 'AGT-102');
   }
 
-  res.json({
-    total: filtered.length,
-    tickets: filtered
-  });
-});
-
-// 2. Get Linked Tickets by TBOH or Agency
-app.get('/api/tickets/:id/linked', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const linkedByTBOH = tickets.filter(t => t.tboh === ticket.tboh && t.id !== ticket.id).map(enrichTicket);
-  const linkedByAgency = tickets.filter(t => t.agencyId === ticket.agencyId && t.id !== ticket.id).map(enrichTicket);
-
-  res.json({
-    primaryTicket: enrichTicket(ticket),
-    linkedByTBOH,
-    linkedByAgency,
-    summary: {
-      sameBookingCount: linkedByTBOH.length,
-      sameAgencyCount: linkedByAgency.length,
-      clusterSeverity: linkedByTBOH.some(t => t.status === 'Escalated') ? 'HIGH_RISK_CLUSTER' : 'NORMAL'
-    }
-  });
-});
-
-// 3. AI Intent Suggestion endpoint
-app.post('/api/ai/classify-intent', (req, res) => {
-  const { title, description } = req.body;
-  const classification = classifyIntent(`${title || ''} ${description || ''}`);
-  res.json(classification);
-});
-
-// 4. Create Ticket (MVP-1 Context-rich ticket + Auto-classification + Auto-linking + Auto-routing)
-app.post('/api/tickets', (req, res) => {
-  const { title, description, agencyId, agencyName, region, priority, checkInDate, lcd, tboh } = req.body;
-
-  if (!title || !agencyName || !tboh) {
-    return res.status(400).json({ error: 'title, agencyName, and tboh are required' });
-  }
-
-  // Intent classification
-  const intentResult = classifyIntent(`${title} ${description}`);
-
-  const newTicket = {
-    id: `TBOT-${1000 + tickets.length + 1}`,
-    tboh,
-    title,
-    description: description || '',
-    agencyId: agencyId || 'AGY-CUSTOM',
-    agencyName,
-    region: region || 'EMEA',
-    category: req.body.category || intentResult.category,
-    subIntent: req.body.subIntent || intentResult.subIntent,
-    priority: priority || 'MEDIUM',
-    status: 'New',
-    checkInDate: checkInDate || new Date(Date.now() + 86400000 * 2).toISOString(),
-    lcd: lcd || new Date(Date.now() + 86400000 * 1).toISOString(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    sideConversations: [],
-    internalNotes: [],
-    history: [
-      { id: uuidv4(), timestamp: new Date().toISOString(), actor: 'System', action: 'Ticket created with AI intent detection: ' + intentResult.category }
-    ]
-  };
-
-  // Perform Intelligent Routing
-  const routing = routeTicket(newTicket, agents);
-  newTicket.assignedTo = routing.assignedTo;
-  newTicket.assignedToName = routing.assignedToName;
-  newTicket.status = routing.status;
-  newTicket.routingReason = routing.routingReason;
-  newTicket.history.push({
-    id: uuidv4(),
-    timestamp: new Date().toISOString(),
-    actor: 'Routing Engine',
-    action: `Assigned to ${routing.assignedToName} (${routing.routingReason})`
-  });
-
-  tickets.unshift(newTicket);
-  res.status(201).json(enrichTicket(newTicket));
-});
-
-// 5. Reassign Ticket (MVP-2 Routing & Ownership)
-app.post('/api/tickets/:id/reassign', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const { agentId, reason } = req.body;
-  const targetAgent = agents.find(a => a.id === agentId);
-  if (!targetAgent) return res.status(400).json({ error: 'Invalid agent ID' });
-
-  const prevAssignee = ticket.assignedToName;
-  ticket.assignedTo = targetAgent.id;
-  ticket.assignedToName = targetAgent.name;
-  ticket.routingReason = reason || `Manual reassignment from ${prevAssignee} to ${targetAgent.name}`;
-  ticket.updatedAt = new Date().toISOString();
-  ticket.history.push({
-    id: uuidv4(),
-    timestamp: new Date().toISOString(),
-    actor: 'Supervisor',
-    action: `Reassigned from ${prevAssignee} to ${targetAgent.name}. Side conversation recipient lists preserved intact.`
-  });
-
-  res.json({ message: 'Ticket reassigned', ticket: enrichTicket(ticket) });
-});
-
-// 6. Direct Escalate Action (MVP-4 Escalation)
-app.post('/api/tickets/:id/escalate', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const { reason } = req.body;
-  const em = agents.find(a => a.role === 'Escalation Manager') || agents[0];
-
-  ticket.status = 'Escalated';
-  ticket.assignedTo = em.id;
-  ticket.assignedToName = em.name;
-  ticket.routingReason = `First-Class Escalation: ${reason || 'Imminent Check-in / Agency SLA threat'}`;
-  ticket.updatedAt = new Date().toISOString();
-  ticket.history.push({
-    id: uuidv4(),
-    timestamp: new Date().toISOString(),
-    actor: 'Agent Request',
-    action: `Escalated directly to Escalation Manager (${em.name}): ${reason || 'High Urgency'}`
-  });
-
-  res.json({ message: 'Ticket escalated to Escalation Manager', ticket: enrichTicket(ticket) });
-});
-
-// 7. Side Conversations (MVP-3 with explicit supplier/agency recipients surviving reassignment)
-app.post('/api/tickets/:id/side-conversations', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const { targetType, supplierName, recipients, subject, initialMessage } = req.body;
-  if (!recipients || !recipients.length || !subject) {
-    return res.status(400).json({ error: 'recipients list and subject are required' });
-  }
-
-  const sideConvo = {
-    id: `sc-${uuidv4().substring(0, 6)}`,
-    targetType: targetType || 'Supplier',
-    supplierName: supplierName || 'External Partner Desk',
-    recipients: Array.isArray(recipients) ? recipients : recipients.split(',').map(s => s.trim()),
-    subject,
-    messages: [
-      {
-        sender: 'TBO Ops Desk',
-        time: new Date().toISOString(),
-        text: initialMessage || 'Inquiry initiated.'
-      }
-    ]
-  };
-
-  ticket.sideConversations.push(sideConvo);
-  ticket.history.push({
-    id: uuidv4(),
-    timestamp: new Date().toISOString(),
-    actor: 'Agent',
-    action: `Opened external side conversation with ${sideConvo.supplierName} (${sideConvo.recipients.join(', ')})`
-  });
-
-  res.status(201).json(sideConvo);
-});
-
-// Add reply to side conversation
-app.post('/api/tickets/:id/side-conversations/:scId/reply', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const sc = ticket.sideConversations.find(c => c.id === req.params.scId);
-  if (!sc) return res.status(404).json({ error: 'Side conversation not found' });
-
-  const { sender, text } = req.body;
-  sc.messages.push({
-    sender: sender || 'TBO Agent',
-    time: new Date().toISOString(),
-    text: text || ''
-  });
-
-  res.json(sc);
-});
-
-// 8. Internal Note
-app.post('/api/tickets/:id/notes', (req, res) => {
-  const ticket = tickets.find(t => t.id === req.params.id);
-  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
-
-  const { author, text } = req.body;
-  const note = {
-    id: uuidv4(),
-    author: author || 'Agent',
-    time: new Date().toISOString(),
-    text
-  };
-
-  ticket.internalNotes.push(note);
-  ticket.history.push({
-    id: uuidv4(),
-    timestamp: new Date().toISOString(),
-    actor: author || 'Agent',
-    action: 'Added internal note'
-  });
-
-  res.status(201).json(note);
-});
-
-// 9. Insights Loop (MVP-5)
-app.get('/api/insights', (req, res) => {
-  const insights = mineInsights(tickets);
-  res.json(insights);
-});
-
-// 10. Large Data Export (MVP-6: Streaming beyond 3k limits)
-app.get('/api/export/tickets', (req, res) => {
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="opsdesk_tickets_full_extract.csv"');
-  
-  let csv = 'TicketID,TBOH,Agency,Region,Category,SubIntent,Priority,Status,AssignedTo,CheckInDate,LCD,SLA_Status\n';
-  tickets.forEach(t => {
-    csv += `"${t.id}","${t.tboh}","${t.agencyName}","${t.region}","${t.category}","${t.subIntent}","${t.priority}","${t.status}","${t.assignedToName}","${t.checkInDate}","${t.lcd}","${t.slaStatus}"\n`;
-  });
-  res.send(csv);
-});
-
-// Available Agents & Taxonomies
-app.get('/api/meta', (req, res) => {
-  res.json({
-    agents,
-    taxonomy: INTENT_TAXONOMY
-  });
-});
-
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`OpsDesk server running on port ${PORT}`);
-  });
-}
-
-module.exports = app;
+  return res.json({ total: filtered.length, tickets: filtered });
+};
